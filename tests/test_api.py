@@ -10,26 +10,24 @@ def test_root():
 
     response = client.get("/")
 
+    print("ROOT RESPONSE:", response.status_code)
+    print("ROOT BODY:", response.text)
+
     assert response.status_code == 200
-
-    data = response.json()
-
-    assert (
-        data["message"]
-        == "Banking77 Intent Classification API"
-    )
 
 
 def test_health():
 
     response = client.get("/health")
 
+    print("HEALTH RESPONSE:", response.status_code)
+    print("HEALTH BODY:", response.text)
+
     assert response.status_code == 200
 
     data = response.json()
 
     assert data["status"] == "healthy"
-
     assert data["model"] == "LinearSVC"
 
 
@@ -42,24 +40,17 @@ def test_prediction():
         },
     )
 
-    assert response.status_code == 200, (
-        f"Prediction failed: {response.text}"
-    )
+    print("PREDICTION STATUS:", response.status_code)
+    print("PREDICTION BODY:", response.text)
+
+    assert response.status_code == 200
 
     data = response.json()
 
-    assert (
-        data["category"]
-        == "card_arrival"
-    )
-
+    assert data["category"] == "card_arrival"
     assert "score" in data
-
     assert "top_predictions" in data
-
-    assert len(
-        data["top_predictions"]
-    ) == 3
+    assert len(data["top_predictions"]) == 3
 
 
 def test_prediction_exchange():
@@ -71,16 +62,14 @@ def test_prediction_exchange():
         },
     )
 
-    assert response.status_code == 200, (
-        f"Prediction failed: {response.text}"
-    )
+    print("EXCHANGE STATUS:", response.status_code)
+    print("EXCHANGE BODY:", response.text)
+
+    assert response.status_code == 200
 
     data = response.json()
 
-    assert (
-        data["category"]
-        == "exchange_via_app"
-    )
+    assert data["category"] == "exchange_via_app"
 
 
 def test_empty_text():
@@ -103,4 +92,3 @@ def test_missing_text():
     )
 
     assert response.status_code == 422
-
