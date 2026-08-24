@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 5s
+
+  evaluation_interval: 5s
+
+
+scrape_configs:
+
+  - job_name: "banking77-api"
+
+    metrics_path: "/metrics"
+
+    static_configs:
+
+      - targets:
+          - "banking77-api:8000"

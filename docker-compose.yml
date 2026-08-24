@@ -1,6 +1,7 @@
 services:
 
   banking77-api:
+
     build:
       context: .
       dockerfile: Dockerfile
@@ -20,7 +21,50 @@ services:
           "-c",
           "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
         ]
-      interval: 30s
+
+      interval: 10s
       timeout: 5s
-      start_period: 10s
-      retries: 3
+      retries: 5
+
+
+  prometheus:
+
+    image: prom/prometheus:latest
+
+    container_name: banking77-prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+    depends_on:
+      banking77-api:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+  grafana:
+
+    image: grafana/grafana:latest
+
+    container_name: banking77-grafana
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      prometheus:
+        condition: service_started
+
+    restart: unless-stopped
+
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+
+volumes:
+
+  grafana_data:
