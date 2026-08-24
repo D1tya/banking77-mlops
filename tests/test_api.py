@@ -42,7 +42,9 @@ def test_prediction():
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 200, (
+        f"Prediction failed: {response.text}"
+    )
 
     data = response.json()
 
@@ -69,7 +71,9 @@ def test_prediction_exchange():
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 200, (
+        f"Prediction failed: {response.text}"
+    )
 
     data = response.json()
 
@@ -99,3 +103,4 @@ def test_missing_text():
     )
 
     assert response.status_code == 422
+
