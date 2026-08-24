@@ -1,9 +1,18 @@
+import time
 from typing import List
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
 from src.inference.predict import predict
+from src.monitoring.metrics import (
+    PREDICTION_ERRORS,
+    PREDICTION_LATENCY,
+    PREDICTION_REQUESTS,
+    PREDICTION_SUCCESS,
+)
 
 
 # ============================================================
@@ -44,12 +53,25 @@ class PredictionResponse(BaseModel):
 
 
 # ============================================================
-# HEALTH CHECK
+# ROOT
+# ============================================================
+
+@app.get("/")
+def root():
+    return {
+        "message": "Banking77 Intent Classification API",
+        "docs": "/docs",
+        "health": "/health",
+        "metrics": "/metrics",
+    }
+
+
+# ============================================================
+# HEALTH
 # ============================================================
 
 @app.get("/health")
 def health_check():
-
     return {
         "status": "healthy",
         "model": "LinearSVC",
@@ -58,7 +80,19 @@ def health_check():
 
 
 # ============================================================
-# PREDICTION ENDPOINT
+# PROMETHEUS METRICS
+# ============================================================
+
+@app.get("/metrics")
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
+# ============================================================
+# PREDICTION
 # ============================================================
 
 @app.post(
@@ -68,16 +102,20 @@ def health_check():
 def predict_intent(
     request: PredictionRequest,
 ):
+    PREDICTION_REQUESTS.inc()
+
+    start_time = time.perf_counter()
 
     try:
+        result = predict(request.text)
 
-        result = predict(
-            request.text
-        )
+        PREDICTION_SUCCESS.inc()
 
         return result
 
     except ValueError as error:
+
+        PREDICTION_ERRORS.inc()
 
         raise HTTPException(
             status_code=400,
@@ -86,12 +124,16 @@ def predict_intent(
 
     except TypeError as error:
 
+        PREDICTION_ERRORS.inc()
+
         raise HTTPException(
             status_code=400,
             detail=str(error),
         )
 
     except FileNotFoundError as error:
+
+        PREDICTION_ERRORS.inc()
 
         raise HTTPException(
             status_code=500,
@@ -100,27 +142,20 @@ def predict_intent(
 
     except Exception as error:
 
+        PREDICTION_ERRORS.inc()
+
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Prediction failed: "
-                f"{str(error)}"
-            ),
+            detail=f"Prediction failed: {str(error)}",
         )
 
+    finally:
 
-# ============================================================
-# ROOT ENDPOINT
-# ============================================================
+        elapsed_time = (
+            time.perf_counter()
+            - start_time
+        )
 
-@app.get("/")
-def root():
-
-    return {
-        "message": (
-            "Banking77 Intent Classification API"
-        ),
-        "docs": "/docs",
-        "health": "/health",
-    }
-
+        PREDICTION_LATENCY.observe(
+            elapsed_time
+        )
