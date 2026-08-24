@@ -6,10 +6,13 @@ import mlflow
 import mlflow.sklearn
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
 )
+
 from sklearn.model_selection import train_test_split
 
 from src.data.ingestion import load_data
@@ -25,6 +28,7 @@ from src.preprocessing.features import create_tfidf_vectorizer
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 MODEL_DIR = PROJECT_ROOT / "models"
+
 MODEL_DIR.mkdir(exist_ok=True)
 
 
@@ -48,9 +52,6 @@ EXPERIMENT_NAME = (
 # ============================================================
 
 def setup_mlflow():
-    """
-    Configure MLflow using the local SQLite backend.
-    """
 
     mlflow.set_tracking_uri(
         MLFLOW_TRACKING_URI
@@ -62,19 +63,59 @@ def setup_mlflow():
 
 
 # ============================================================
+# MODEL CREATION
+# ============================================================
+
+def create_model(
+    model_type="svm",
+    C=1.0,
+):
+    """
+    Create the requested classification model.
+
+    Supported models:
+        - logistic_regression
+        - svm
+    """
+
+    if model_type == "logistic_regression":
+
+        return LogisticRegression(
+            max_iter=1000,
+            C=C,
+            solver="lbfgs",
+            random_state=42,
+        )
+
+    elif model_type == "svm":
+
+        return LinearSVC(
+            C=C,
+            max_iter=5000,
+            random_state=42,
+        )
+
+    else:
+
+        raise ValueError(
+            f"Unsupported model type: {model_type}"
+        )
+
+
+# ============================================================
 # MODEL TRAINING
 # ============================================================
 
-def train_model(X_train, y_train, C=1.0):
-    """
-    Train Logistic Regression.
-    """
+def train_model(
+    X_train,
+    y_train,
+    model_type="svm",
+    C=1.0,
+):
 
-    model = LogisticRegression(
-        max_iter=1000,
+    model = create_model(
+        model_type=model_type,
         C=C,
-        solver="lbfgs",
-        random_state=42,
     )
 
     start_time = time.time()
@@ -84,7 +125,9 @@ def train_model(X_train, y_train, C=1.0):
         y_train,
     )
 
-    training_time = time.time() - start_time
+    training_time = (
+        time.time() - start_time
+    )
 
     return model, training_time
 
@@ -93,16 +136,19 @@ def train_model(X_train, y_train, C=1.0):
 # MODEL EVALUATION
 # ============================================================
 
-def evaluate_model(model, X, y):
-    """
-    Evaluate a trained model.
-    """
+def evaluate_model(
+    model,
+    X,
+    y,
+):
 
     start_time = time.time()
 
     predictions = model.predict(X)
 
-    inference_time = time.time() - start_time
+    inference_time = (
+        time.time() - start_time
+    )
 
     accuracy = accuracy_score(
         y,
@@ -146,16 +192,17 @@ def evaluate_model(model, X, y):
 
 
 # ============================================================
-# MODEL SAVING
+# LOCAL MODEL SAVING
 # ============================================================
 
 def save_model(
     model,
-    filename="logistic_regression.joblib",
+    model_type,
 ):
-    """
-    Save trained model locally.
-    """
+
+    filename = (
+        f"{model_type}.joblib"
+    )
 
     path = MODEL_DIR / filename
 
@@ -171,13 +218,12 @@ def save_model(
 
 def save_vectorizer(
     vectorizer,
-    filename="tfidf_vectorizer.joblib",
 ):
-    """
-    Save fitted TF-IDF vectorizer locally.
-    """
 
-    path = MODEL_DIR / filename
+    path = (
+        MODEL_DIR /
+        "tfidf_vectorizer.joblib"
+    )
 
     joblib.dump(
         vectorizer,
@@ -195,12 +241,30 @@ def save_vectorizer(
 
 def main():
 
+    # --------------------------------------------------------
+    # MODEL CONFIGURATION
+    # --------------------------------------------------------
+
+    model_type = "svm"
+
+    C = 1.0
+
+    run_name = (
+        "linear-svm-baseline"
+    )
+
     print("\n========================================")
-    print("       BANKING77 MODEL TRAINING")
-    print("========================================\n")
+
+    print(
+        f"       BANKING77 {model_type.upper()}"
+    )
+
+    print(
+        "========================================\n"
+    )
 
     # --------------------------------------------------------
-    # 1. SETUP MLFLOW
+    # 1. MLFLOW
     # --------------------------------------------------------
 
     setup_mlflow()
@@ -209,10 +273,12 @@ def main():
     # 2. LOAD DATA
     # --------------------------------------------------------
 
-    train_df, test_df, categories = load_data()
+    train_df, test_df, categories = (
+        load_data()
+    )
 
     # --------------------------------------------------------
-    # 3. VALIDATE DATA
+    # 3. VALIDATION
     # --------------------------------------------------------
 
     train_df, test_df = run_validation(
@@ -222,7 +288,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 4. PREPROCESS
+    # 4. PREPROCESSING
     # --------------------------------------------------------
 
     train_df = preprocess_dataset(
@@ -234,14 +300,24 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 5. SEPARATE TEXT AND LABELS
+    # 5. TEXT + LABELS
     # --------------------------------------------------------
 
-    X_text = train_df["cleaned_text"]
-    y = train_df["category"]
+    X_text = train_df[
+        "cleaned_text"
+    ]
 
-    X_test_text = test_df["cleaned_text"]
-    y_test = test_df["category"]
+    y = train_df[
+        "category"
+    ]
+
+    X_test_text = test_df[
+        "cleaned_text"
+    ]
+
+    y_test = test_df[
+        "category"
+    ]
 
     # --------------------------------------------------------
     # 6. TRAIN / VALIDATION SPLIT
@@ -281,20 +357,26 @@ def main():
     # 7. TF-IDF
     # --------------------------------------------------------
 
-    vectorizer = create_tfidf_vectorizer()
-
-    # Fit ONLY on training data
-    X_train = vectorizer.fit_transform(
-        X_train_text
+    vectorizer = (
+        create_tfidf_vectorizer()
     )
 
-    # Transform validation/test
-    X_val = vectorizer.transform(
-        X_val_text
+    X_train = (
+        vectorizer.fit_transform(
+            X_train_text
+        )
     )
 
-    X_test = vectorizer.transform(
-        X_test_text
+    X_val = (
+        vectorizer.transform(
+            X_val_text
+        )
+    )
+
+    X_test = (
+        vectorizer.transform(
+            X_test_text
+        )
     )
 
     vocabulary_size = len(
@@ -321,27 +403,20 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 8. START MLFLOW RUN
+    # 8. MLFLOW RUN
     # --------------------------------------------------------
 
     with mlflow.start_run(
-        run_name="logistic-regression-baseline"
+        run_name=run_name
     ):
 
         # ----------------------------------------------------
-        # Parameters
+        # PARAMETERS
         # ----------------------------------------------------
-
-        C = 1.0
 
         mlflow.log_param(
             "model",
-            "LogisticRegression",
-        )
-
-        mlflow.log_param(
-            "solver",
-            "lbfgs",
+            model_type,
         )
 
         mlflow.log_param(
@@ -351,7 +426,7 @@ def main():
 
         mlflow.log_param(
             "max_iter",
-            1000,
+            5000,
         )
 
         mlflow.log_param(
@@ -405,17 +480,20 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Train
+        # TRAIN
         # ----------------------------------------------------
 
         print(
-            "\nTraining Logistic Regression..."
+            f"\nTraining {model_type}..."
         )
 
-        model, training_time = train_model(
-            X_train,
-            y_train,
-            C=C,
+        model, training_time = (
+            train_model(
+                X_train,
+                y_train,
+                model_type=model_type,
+                C=C,
+            )
         )
 
         print(
@@ -424,7 +502,7 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Validation
+        # VALIDATION
         # ----------------------------------------------------
 
         print(
@@ -432,62 +510,30 @@ def main():
             "on validation set..."
         )
 
-        validation_metrics = evaluate_model(
-            model,
-            X_val,
-            y_val,
+        validation_metrics = (
+            evaluate_model(
+                model,
+                X_val,
+                y_val,
+            )
         )
 
         # ----------------------------------------------------
-        # Log validation metrics
+        # LOG VALIDATION METRICS
         # ----------------------------------------------------
 
-        mlflow.log_metric(
-            "val_accuracy",
-            validation_metrics["accuracy"],
-        )
+        for metric_name, value in (
+            validation_metrics.items()
+        ):
 
-        mlflow.log_metric(
-            "val_weighted_precision",
-            validation_metrics[
-                "weighted_precision"
-            ],
-        )
+            if metric_name != (
+                "inference_time"
+            ):
 
-        mlflow.log_metric(
-            "val_weighted_recall",
-            validation_metrics[
-                "weighted_recall"
-            ],
-        )
-
-        mlflow.log_metric(
-            "val_weighted_f1",
-            validation_metrics[
-                "weighted_f1"
-            ],
-        )
-
-        mlflow.log_metric(
-            "val_macro_precision",
-            validation_metrics[
-                "macro_precision"
-            ],
-        )
-
-        mlflow.log_metric(
-            "val_macro_recall",
-            validation_metrics[
-                "macro_recall"
-            ],
-        )
-
-        mlflow.log_metric(
-            "val_macro_f1",
-            validation_metrics[
-                "macro_f1"
-            ],
-        )
+                mlflow.log_metric(
+                    f"val_{metric_name}",
+                    value,
+                )
 
         mlflow.log_metric(
             "training_time_seconds",
@@ -502,7 +548,7 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Display validation results
+        # DISPLAY VALIDATION
         # ----------------------------------------------------
 
         print(
@@ -562,16 +608,16 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Save model to MLflow
+        # SAVE MODEL TO MLFLOW
         # ----------------------------------------------------
 
         mlflow.sklearn.log_model(
             model,
-            name="logistic_regression_model",
+            name=f"{model_type}_model",
         )
 
         # ----------------------------------------------------
-        # Save vectorizer
+        # SAVE VECTORIZE
         # ----------------------------------------------------
 
         vectorizer_path = (
@@ -590,44 +636,58 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Save model locally
+        # SAVE MODEL LOCALLY
         # ----------------------------------------------------
 
-        save_model(model)
+        save_model(
+            model,
+            model_type,
+        )
 
-        save_vectorizer(vectorizer)
+        save_vectorizer(
+            vectorizer,
+        )
 
         # ----------------------------------------------------
-        # Test evaluation
+        # TEST EVALUATION
         # ----------------------------------------------------
 
         print(
-            "\nEvaluating model on test set..."
+            "\nEvaluating model "
+            "on test set..."
         )
 
-        test_metrics = evaluate_model(
-            model,
-            X_test,
-            y_test,
+        test_metrics = (
+            evaluate_model(
+                model,
+                X_test,
+                y_test,
+            )
         )
 
         # ----------------------------------------------------
-        # Log test metrics
+        # LOG TEST METRICS
         # ----------------------------------------------------
 
         mlflow.log_metric(
             "test_accuracy",
-            test_metrics["accuracy"],
+            test_metrics[
+                "accuracy"
+            ],
         )
 
         mlflow.log_metric(
             "test_weighted_f1",
-            test_metrics["weighted_f1"],
+            test_metrics[
+                "weighted_f1"
+            ],
         )
 
         mlflow.log_metric(
             "test_macro_f1",
-            test_metrics["macro_f1"],
+            test_metrics[
+                "macro_f1"
+            ],
         )
 
         mlflow.log_metric(
@@ -645,7 +705,7 @@ def main():
         )
 
         # ----------------------------------------------------
-        # Display test results
+        # DISPLAY TEST
         # ----------------------------------------------------
 
         print(
@@ -734,3 +794,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
