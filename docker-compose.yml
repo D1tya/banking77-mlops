@@ -1,0 +1,26 @@
+services:
+
+  banking77-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: banking77-api
+
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
