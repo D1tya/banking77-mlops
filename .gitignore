@@ -25,6 +25,10 @@ models/*
 
 # MLflow
 mlruns/
+mlflow.db
+mlflow.db-journal
+mlflow.db-shm
+mlflow.db-wal
 
 # Logs
 logs/
